@@ -21,7 +21,7 @@ char* helptext =
     "  -v, --version        Display the version number and exit.\n";
 
 
-void print_line(uint8_t* buffer, size_t num_bytes, int offset, int line_length) {
+void print_line(uint8_t* buffer, int num_bytes, int offset, int line_length) {
     printf("%8X |", offset);
 
     for (int i = 0; i < line_length; i++) {
@@ -67,7 +67,7 @@ void dump_file(FILE* file, int offset, int bytes_to_read, int line_length) {
             max_bytes = bytes_to_read;
         }
 
-        size_t num_bytes = fread(buffer, sizeof(uint8_t), max_bytes, file);
+        int num_bytes = fread(buffer, sizeof(uint8_t), max_bytes, file);
         if (num_bytes > 0) {
             print_line(buffer, num_bytes, offset, line_length);
             offset += num_bytes;
