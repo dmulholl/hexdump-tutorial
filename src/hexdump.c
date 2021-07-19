@@ -22,10 +22,10 @@ char* helptext =
 
 
 void print_line(uint8_t* buffer, int num_bytes, int offset, int line_length) {
-    printf("%8X |", offset);
+    printf("%6X |", offset);
 
     for (int i = 0; i < line_length; i++) {
-        if (i > 0 && i % 8 == 0) {
+        if (i > 0 && i % 4 == 0) {
             printf(" ");
         }
         if (i < num_bytes) {

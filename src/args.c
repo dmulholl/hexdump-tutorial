@@ -29,7 +29,7 @@ static char* str(const char* fmtstr, ...) {
 
     va_start(args, fmtstr);
     int len = vsnprintf(NULL, 0, fmtstr, args);
-    if (len < 1) {
+    if (len < 0) {
         return NULL;
     }
     va_end(args);
@@ -139,6 +139,8 @@ static void vec_add(Vec* vec, void* entry) {
 /* ------------------------------------------------------------------- */
 
 
+// The map automatically grows to keep count/capacity < MAP_MAX_LOAD.
+// This data structure performs optimally when it's less than half-full.
 #define MAP_MAX_LOAD 0.5
 
 
@@ -152,6 +154,7 @@ typedef struct {
 typedef struct {
     int count;
     int capacity;
+    int max_load_threshold;
     MapEntry* entries;
 } Map;
 
@@ -160,6 +163,7 @@ static Map* map_new() {
     Map* map = malloc(sizeof(Map));
     map->count = 0;
     map->capacity = 0;
+    map->max_load_threshold = 0;
     map->entries = NULL;
     return map;
 }
@@ -178,20 +182,18 @@ static void map_free(Map* map) {
 
 
 static MapEntry* map_find(Map* map, const char* key, uint32_t key_hash) {
-    // Capacity is always a power of 2 so we can use bitwise-and as a fast
+    // Capacity is always a power of 2 so we can use bitwise-AND as a fast
     // modulo operator, i.e. this is equivalent to: index = key_hash % capacity.
     size_t index = key_hash & (map->capacity - 1);
 
     for (;;) {
         MapEntry* entry = &map->entries[index];
-
         if (entry->key == NULL) {
             return entry;
         } else if (key_hash == entry->key_hash && strcmp(key, entry->key) == 0) {
             return entry;
         }
-
-        index = (index + 1) % map->capacity;
+        index = (index + 1) & (map->capacity - 1);
     }
 }
 
@@ -208,6 +210,7 @@ static void map_grow(Map* map) {
 
     map->count = 0;
     map->capacity = new_capacity;
+    map->max_load_threshold = new_capacity * MAP_MAX_LOAD;
     map->entries = new_entries;
 
     for (int i = 0; i < old_capacity; i++) {
@@ -241,7 +244,7 @@ static bool map_get(Map* map, const char* key, void** value) {
 // Adds a new entry to the map or updates the value of an existing entry.
 // (Note that the map stores its own internal copy of the key string.)
 static void map_set(Map* map, const char* key, void* value) {
-    if (map->count + 1 > map->capacity * MAP_MAX_LOAD) {
+    if (map->count == map->max_load_threshold) {
         map_grow(map);
     }
 
@@ -258,8 +261,8 @@ static void map_set(Map* map, const char* key, void* value) {
 }
 
 
-// Splits the keys string into space-separated keywords and adds an entry to
-// to the map for each.
+// Convenience wrapper for map_set(). This splits the keystring into space-
+// separated words and adds a separate entry to the map for each word.
 static void map_set_splitkey(Map *map, const char* keys, void* value) {
     char *key;
     char *saveptr;
@@ -993,7 +996,7 @@ void ap_print(ArgParser* parser) {
     puts("\nArguments:");
     if (parser->positional_args->count > 0) {
         for (int i = 0; i < parser->positional_args->count; i++) {
-            printf("  %s\n", parser->positional_args->entries[i]);
+            printf("  %s\n", ap_arg(parser, i));
         }
     } else {
         puts("  [none]");
